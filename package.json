@@ -2,9 +2,9 @@
 	"name": "sveltee",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "vite dev",
-		"build": "vite build",
-		"preview": "vite preview",
+		"dev": "dotenv -e .env vite dev",
+		"build": "dotenv -e .env vite build",
+		"preview": "dotenv -e .env vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"db:generate": "drizzle-kit generate",
 		"db:studio": "drizzle-kit studio",

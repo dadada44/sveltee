@@ -4,6 +4,8 @@ import Groq from 'groq-sdk';
 import { env } from '$env/dynamic/private';
 
 /** @type {import('./$types').RequestHandler} */
+
+console.log('Env keys', { GROQ: !!env.GROQ_API_KEY, OPENAI: !!env.OPENAI_API_KEY });
 export async function POST({ request }) {
 	try {
 		const { messages } = await request.json();
@@ -26,6 +28,9 @@ export async function POST({ request }) {
 
 		let assistantMessage = null;
 
+		// Groq model - můžete přepsat v .env pomocí GROQ_MODEL
+		const groqModel = env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+
 		// Zkus nejdřív Groq (FREE tier) - pokud je nastavený API klíč
 		if (env.GROQ_API_KEY) {
 			try {
@@ -34,7 +39,7 @@ export async function POST({ request }) {
 				});
 
 				const completion = await groq.chat.completions.create({
-					model: 'llama-3.1-70b-versatile', // Rychlý a kvalitní model na Groq
+					model: groqModel, // Rychlý a kvalitní model na Groq
 					messages: conversationMessages,
 					temperature: 0.7,
 					max_tokens: 2000
@@ -42,7 +47,23 @@ export async function POST({ request }) {
 
 				assistantMessage = completion.choices[0]?.message?.content;
 			} catch (groqError) {
-				console.warn('Groq API error, trying OpenAI:', groqError.message);
+				console.warn('Groq API error, trying OpenAI:', groqError?.message || groqError);
+				// Pro případ migrací modelu - pokud je vyřazen, zkusíme jiný doporučený model
+				if ((groqError?.code === 'model_decommissioned' || (groqError?.message && groqError.message.includes('decommissioned'))) && groqModel !== 'llama-3.3-70b-versatile') {
+					try {
+						const groqFallback = new Groq({ apiKey: env.GROQ_API_KEY });
+						const completion2 = await groqFallback.chat.completions.create({
+							model: 'llama-3.3-70b-versatile',
+							messages: conversationMessages,
+							temperature: 0.7,
+							max_tokens: 2000
+						});
+						assistantMessage = completion2.choices[0]?.message?.content;
+						console.log('Groq fallback model used');
+					} catch (fallbackError) {
+						console.warn('Groq fallback model failed as well:', fallbackError);
+					}
+				}
 				// Pokud Groq selže, zkus OpenAI
 			}
 		}
